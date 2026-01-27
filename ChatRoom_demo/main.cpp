@@ -21,6 +21,9 @@
 #include <dxgidebug.h>
 #pragma comment(lib, "dxguid.lib")
 #endif
+#include <string>
+#include <vector>
+#include <map>
 
 // Config for example app
 static const int APP_NUM_FRAMES_IN_FLIGHT = 2;
@@ -32,6 +35,17 @@ struct FrameContext
     ID3D12CommandAllocator*     CommandAllocator;
     UINT64                      FenceValue;
 };
+
+//private chat data structure
+struct PrivateChatData {
+	bool is_show = false;          // window visibility
+	std::vector<std::string> msgs; // private message list
+	char input_buf[256] = { 0 };   // input buffer
+};
+
+// online users and their private chat data
+std::vector<std::string> g_online_users = { "User1", "User2", "User3", "User4" };
+std::map<std::string, PrivateChatData> g_private_chat_map;
 
 // Simple free list based allocator
 struct ExampleDescriptorHeapAllocator
@@ -107,6 +121,39 @@ void WaitForPendingOperations();
 FrameContext* WaitForNextFrameContext();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+// -- Render private chat window for a specific user -- //
+void RenderPrivateChatWindow(const std::string& username) {
+	auto& chat_data = g_private_chat_map[username];
+	if (!chat_data.is_show) return;
+
+	// construct window title
+	std::string window_title = "Private Chat with " + username;
+
+    ImGui::SetNextWindowSize(ImVec2(800,400));
+	
+	if (ImGui::Begin(window_title.c_str(), &chat_data.is_show, ImGuiWindowFlags_NoResize)) {
+		// message display area
+		ImGui::BeginChild(("MsgArea_" + username).c_str(), ImVec2(0, 300), true);
+		for (const auto& msg : chat_data.msgs) {
+			ImGui::TextColored(ImVec4(0, 1, 0, 1), "Private Message");
+		}
+		ImGui::EndChild();
+
+		// text input and send button
+        ImGui::SetNextItemWidth(450);
+		ImGui::InputText("Private Message", chat_data.input_buf, IM_ARRAYSIZE(chat_data.input_buf));
+		ImGui::SameLine();
+		if (ImGui::Button("Send Private")) {
+			// simulate sending private message
+			if (strlen(chat_data.input_buf) > 0) {
+				chat_data.msgs.push_back(std::string("Me: ") + chat_data.input_buf);
+				memset(chat_data.input_buf, 0, sizeof(chat_data.input_buf)); // clear input buffer
+			}
+		}
+	}
+	ImGui::End();
+}
+
 // Main code
 int main(int, char**)
 {
@@ -117,7 +164,7 @@ int main(int, char**)
     // Create application window
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
     ::RegisterClassExW(&wc);
-    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Dear ImGui DirectX12 Example", WS_OVERLAPPEDWINDOW, 100, 100, (int)(1280 * main_scale), (int)(800 * main_scale), nullptr, nullptr, wc.hInstance, nullptr);
+    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Chat Room Client", WS_OVERLAPPEDWINDOW, 100, 100, (int)(1280 * main_scale), (int)(800 * main_scale), nullptr, nullptr, wc.hInstance, nullptr);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
@@ -219,36 +266,55 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-		// ========== 核心GUI布局（聊天室预览） ==========
-		// 1. 主窗口
+		// ========== Core GUI Layout ==========
+		// main chat room window
         ImGui::SetNextWindowSize(ImVec2(800, 600));
 		ImGui::Begin("Chat Client", &show_chat_room, ImGuiWindowFlags_NoResize);
-		// 左侧在线用户列表
+		// left side online users list
 		ImGui::BeginChild("Online Users", ImVec2(200, 500), true);
 		ImGui::Text("Users:");
 		ImGui::Separator();
-		ImGui::Selectable("User1");
-		ImGui::Selectable("User2");
-		ImGui::Selectable("User3");
+		// traverse online users
+		for (const auto& user : g_online_users) {
+			ImGui::Selectable(user.c_str());
+			// IsItemClicked(1) symbolizes right-click(0: left-click, 1: right-click)
+			if (ImGui::IsItemClicked(1)) {
+				// mark the private chat window to be shown
+				g_private_chat_map[user].is_show = true;
+				// initialize: add welcome message if first time opening
+				if (g_private_chat_map[user].msgs.empty()) {
+					g_private_chat_map[user].msgs.push_back("开始与 " + user + " 的私信对话...");
+				}
+			}
+		}
 		ImGui::EndChild();
 
 		ImGui::SameLine();
 
-		// 右侧消息区
+		// right- side message display area
 		ImGui::BeginChild("Message Area", ImVec2(0, 500), true);
 		ImGui::TextWrapped("User1: Hello everyone!");
-		ImGui::TextColored(ImVec4(0, 1, 0, 1), "User2: Hi you!"); // 私信标绿色
+		ImGui::TextColored(ImVec4(0, 1, 0, 1), "User2: Hi you!"); 
 		ImGui::EndChild();
 
-		// 底部输入框
+		// input text and send button
+		
 		static char input_buf[256] = "";
 		ImGui::InputText("Message", input_buf, IM_ARRAYSIZE(input_buf));
 		ImGui::SameLine();
 		if (ImGui::Button("Send")) {
-			// 后续对接网络发送逻辑
+			// The subsequent network connection and data transmission logic:
 			ImGui::SetTooltip("Send message: %s", input_buf);
 		}
 		ImGui::End();
+
+		if (!show_chat_room) {
+			PostQuitMessage(0);
+		}
+
+		for (const auto& user : g_online_users) {
+			RenderPrivateChatWindow(user);
+		}
 
         // Rendering
         ImGui::Render();
