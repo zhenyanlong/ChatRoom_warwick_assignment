@@ -19,6 +19,12 @@
     <Filter Include="Source Files\Backends">
       <UniqueIdentifier>{9a2c3313-f946-4b6c-842a-1bcdb4b60a3a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Web">
+      <UniqueIdentifier>{a2fa37b4-d255-4746-ba2f-bc0f738a27f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Web">
+      <UniqueIdentifier>{e56c2eae-2cda-4f8d-8895-e0e9519cafa6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -45,6 +51,9 @@
     <ClCompile Include="imgui_demo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="web_utils.cpp">
+      <Filter>Source Files\Web</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui.h">
@@ -70,6 +79,9 @@
     </ClInclude>
     <ClInclude Include="imstb_truetype.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="web_utils.h">
+      <Filter>Header Files\Web</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

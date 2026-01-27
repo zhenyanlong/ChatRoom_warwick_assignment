@@ -1,5 +1,5 @@
 // Dear ImGui: standalone example application for Windows API + DirectX 12
-
+#define WIN32_LEAN_AND_MEAN
 // Learn about Dear ImGui:
 // - FAQ                  https://dearimgui.com/faq
 // - Getting Started      https://dearimgui.com/getting-started
@@ -21,9 +21,11 @@
 #include <dxgidebug.h>
 #pragma comment(lib, "dxguid.lib")
 #endif
+#include <iostream>
 #include <string>
 #include <vector>
 #include <map>
+#include <web_utils.h>
 
 // Config for example app
 static const int APP_NUM_FRAMES_IN_FLIGHT = 2;
@@ -155,14 +157,32 @@ void RenderPrivateChatWindow(const std::string& username) {
 }
 
 // Main code
-int main(int, char**)
+int main(int argc, char** argv)
 {
+	std::string user_name = "DefaultUser";
+	// Receive name
+	if (argc == 2)
+	{
+        user_name = argv[1];
+        std::cout << "User name: " << user_name << std::endl;
+	}
+    else if (argc > 2)
+    {
+        std::cout << "Usage: ChatRoom_demo.exe [username]" << std::endl;
+		std::cout << "arg count: " << argc << std::endl;
+        return 1;
+	}
+
+	// Init web socket
+    web_utils::Get()->InitWebSock();
+	web_utils::Get()->ConnectToServer();
+
     // Make process DPI aware and obtain main monitor scale
     ImGui_ImplWin32_EnableDpiAwareness();
     float main_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
 
     // Create application window
-    WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
+    WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Chat Client", nullptr };
     ::RegisterClassExW(&wc);
     HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Chat Room Client", WS_OVERLAPPEDWINDOW, 100, 100, (int)(1280 * main_scale), (int)(800 * main_scale), nullptr, nullptr, wc.hInstance, nullptr);
 
@@ -231,6 +251,8 @@ int main(int, char**)
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf");
     //IM_ASSERT(font != nullptr);
 
+    
+
     // Our state
     bool show_chat_room = true;
     bool show_another_window = false;
@@ -272,7 +294,7 @@ int main(int, char**)
 		ImGui::Begin("Chat Client", &show_chat_room, ImGuiWindowFlags_NoResize);
 		// left side online users list
 		ImGui::BeginChild("Online Users", ImVec2(200, 500), true);
-		ImGui::Text("Users:");
+		ImGui::Text("Users: %s", user_name.c_str());
 		ImGui::Separator();
 		// traverse online users
 		for (const auto& user : g_online_users) {
@@ -361,6 +383,8 @@ int main(int, char**)
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
+                                          
+    web_utils::Get()->CleanupWebSock();
 
     CleanupDeviceD3D();
     ::DestroyWindow(hwnd);
