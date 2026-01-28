@@ -3,6 +3,8 @@
 // 必要的头文件
 #include <iostream>
 #include <string>
+#include <vector>
+#include <thread>
 // WinSock核心头文件
 
 #include <winsock2.h>
@@ -40,6 +42,13 @@ public:
 	bool ConnectToServer();
 	//Cleanup WinSock
 	void CleanupWebSock();
+
+	void SendMessage(const std::string& message);
+
+	void SendBroadcastMessage(std::string message);
+
+
+	void StartReceiveThread(std::vector<std::string>& messages);
 private:
 	web_utils() = default;
 

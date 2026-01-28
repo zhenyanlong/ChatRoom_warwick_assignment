@@ -1,4 +1,5 @@
 #include "web_utils.h"
+#include <thread>
 
 web_utils* web_utils::SingleInstance = nullptr;
 
@@ -65,4 +66,57 @@ void web_utils::CleanupWebSock()
 		client_socket = INVALID_SOCKET;
 	}
 	WSACleanup();               
+}
+
+void web_utils::SendMessage(const std::string& message)
+{
+	if (client_socket == INVALID_SOCKET) {
+		std::cerr << "套接字无效，无法发送消息" << std::endl;
+		return;
+	}
+	int send_result = send(client_socket, message.c_str(), static_cast<int>(message.size()), 0);
+	if (send_result == SOCKET_ERROR) {
+		std::cerr << "发送消息失败，错误码: " << WSAGetLastError() << std::endl;
+	} else {
+		std::cout << "成功发送消息: " << message << std::endl;
+	}
+}
+
+void web_utils::SendBroadcastMessage(std::string message)
+{
+	if (client_socket == INVALID_SOCKET) {
+		std::cerr << "套接字无效，无法发送消息" << std::endl;
+		return;
+	}
+	message = std::string("!broadcast ") + message; // Prefix to indicate broadcast message
+	
+	int send_result = send(client_socket, message.c_str(), static_cast<int>(message.size()), 0);
+	if (send_result == SOCKET_ERROR) {
+		std::cerr << "发送消息失败，错误码: " << WSAGetLastError() << std::endl;
+	} else {
+		std::cout << "成功发送消息: " << message << std::endl;
+	}
+}
+
+void web_utils::StartReceiveThread(std::vector<std::string>& messages)
+{
+	// Implementation of receiving thread can be added here
+	std::thread receive_thread([this, &messages]() {
+		char buffer[DEFAULT_BUFFER_SIZE];
+		while (true) {
+			int bytes_received = recv(client_socket, buffer, DEFAULT_BUFFER_SIZE - 1, 0);
+			if (bytes_received > 0) {
+				buffer[bytes_received] = '\0'; // Null-terminate the received data
+				std::cout << "Received: " << buffer << std::endl;
+				messages.push_back(std::string(buffer));
+			} else if (bytes_received == 0) {
+				std::cout << "Connection closed by server." << std::endl;
+				break;
+			} else {
+				std::cerr << "Receive failed, error code: " << WSAGetLastError() << std::endl;
+				break;
+			}
+		}
+		});
+	receive_thread.detach(); 
 }

@@ -123,6 +123,17 @@ void WaitForPendingOperations();
 FrameContext* WaitForNextFrameContext();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+#define UNKNOWN_USER_NAME "!unknown"
+
+static std::string GetNameFromMessage(const std::string& message) {
+    // assuming message format is "username: message"
+    size_t delimiter_pos = message.find(':');
+    if (delimiter_pos != std::string::npos) {
+        return message.substr(0, delimiter_pos);
+    }
+    return UNKNOWN_USER_NAME;
+}
+
 // -- Render private chat window for a specific user -- //
 void RenderPrivateChatWindow(const std::string& username) {
 	auto& chat_data = g_private_chat_map[username];
@@ -176,6 +187,9 @@ int main(int argc, char** argv)
 	// Init web socket
     web_utils::Get()->InitWebSock();
 	web_utils::Get()->ConnectToServer();
+    // register name
+	web_utils::Get()->SendMessage(user_name);
+	
 
     // Make process DPI aware and obtain main monitor scale
     ImGui_ImplWin32_EnableDpiAwareness();
@@ -257,6 +271,8 @@ int main(int argc, char** argv)
     bool show_chat_room = true;
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+	std::vector<std::string> messages;
+    web_utils::Get()->StartReceiveThread(messages);
 
     // Main loop
     bool done = false;
@@ -315,8 +331,19 @@ int main(int argc, char** argv)
 
 		// right- side message display area
 		ImGui::BeginChild("Message Area", ImVec2(0, 500), true);
-		ImGui::TextWrapped("User1: Hello everyone!");
-		ImGui::TextColored(ImVec4(0, 1, 0, 1), "User2: Hi you!"); 
+		for (const auto& msg : messages) {
+			if (msg.empty()) continue;
+            // distinguish other users' messages and own messages with different colors
+            if (user_name == GetNameFromMessage(msg)) {
+                ImGui::TextColored(ImVec4(0, 1, 0, 1), msg.c_str());
+			}
+            else
+            {
+                ImGui::TextWrapped("%s", msg.c_str());
+            }
+			
+			
+		}
 		ImGui::EndChild();
 
 		// input text and send button
@@ -327,6 +354,9 @@ int main(int argc, char** argv)
 		if (ImGui::Button("Send")) {
 			// The subsequent network connection and data transmission logic:
 			ImGui::SetTooltip("Send message: %s", input_buf);
+            //messages.push_back(std::string("Me: ") + input_buf);
+			web_utils::Get()->SendBroadcastMessage(input_buf);
+			memset(input_buf, 0, sizeof(input_buf)); // clear input buffer
 		}
 		ImGui::End();
 
