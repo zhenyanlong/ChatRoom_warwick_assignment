@@ -32,6 +32,8 @@ static const int APP_NUM_FRAMES_IN_FLIGHT = 2;
 static const int APP_NUM_BACK_BUFFERS = 2;
 static const int APP_SRV_HEAP_SIZE = 64;
 
+
+
 struct FrameContext
 {
     ID3D12CommandAllocator*     CommandAllocator;
@@ -189,6 +191,8 @@ int main(int argc, char** argv)
 	web_utils::Get()->ConnectToServer();
     // register name
 	web_utils::Get()->SendMessage(user_name);
+    // receive online users list from server
+    web_utils::Get()->ReceiveUserListMessage(g_online_users);
 	
 
     // Make process DPI aware and obtain main monitor scale
@@ -272,7 +276,9 @@ int main(int argc, char** argv)
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 	std::vector<std::string> messages;
-    web_utils::Get()->StartReceiveThread(messages);
+    web_utils::Get()->StartReceiveThread(messages, g_online_users);
+	
+    
 
     // Main loop
     bool done = false;
@@ -314,6 +320,7 @@ int main(int argc, char** argv)
 		ImGui::Separator();
 		// traverse online users
 		for (const auto& user : g_online_users) {
+			if (user == user_name) continue; // skip self
 			ImGui::Selectable(user.c_str());
 			// IsItemClicked(1) symbolizes right-click(0: left-click, 1: right-click)
 			if (ImGui::IsItemClicked(1)) {

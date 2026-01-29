@@ -88,7 +88,7 @@ void web_utils::SendBroadcastMessage(std::string message)
 		std::cerr << "套接字无效，无法发送消息" << std::endl;
 		return;
 	}
-	message = std::string("!broadcast ") + message; // Prefix to indicate broadcast message
+	message = std::string(BROADCAST_MSG)+ " " + message; // Prefix to indicate broadcast message
 	
 	int send_result = send(client_socket, message.c_str(), static_cast<int>(message.size()), 0);
 	if (send_result == SOCKET_ERROR) {
@@ -98,17 +98,109 @@ void web_utils::SendBroadcastMessage(std::string message)
 	}
 }
 
-void web_utils::StartReceiveThread(std::vector<std::string>& messages)
+void web_utils::ReceiveUserListMessage(std::vector<std::string>& user_list)
+{
+	char buffer[DEFAULT_BUFFER_SIZE];
+	int bytes_received = recv(client_socket, buffer, DEFAULT_BUFFER_SIZE - 1, 0);
+	if (bytes_received > 0) {
+		buffer[bytes_received] = '\0'; // Null-terminate the received data
+		std::string received_msg = std::string(buffer);
+
+		RemoveLineFeedFromTail(received_msg);
+
+		std::string reminder;
+		std::string command = UnpackFirstCommand(received_msg, reminder);
+		if (command == USER_LIST_MSG)
+		{
+			UpdateUserList(reminder, user_list);
+		}
+		else
+		{
+			std::cerr << "Received unexpected message when expecting user list: " << buffer << std::endl;
+		}
+	} else if (bytes_received == 0) {
+		std::cout << "Connection closed by server." << std::endl;
+	} else {
+		std::cerr << "Receive failed, error code: " << WSAGetLastError() << std::endl;
+	}
+	recv_cache.clear();
+}
+
+
+
+void web_utils::UpdateUserList(const std::string& user_list, std::vector<std::string>& user_list_vec)
+{
+	user_list_vec.clear();
+	size_t start = 0;
+	size_t end = user_list.find(',');
+	while (end != std::string::npos) {
+		std::string user = user_list.substr(start, end - start);
+		// 只添加非空的用户名称
+		if (!user.empty()) {
+			user_list_vec.push_back(user);
+		}
+		start = end + 1;
+		end = user_list.find(',', start);
+	}
+	// Add the last user (or the only user if no commas)
+	if (start < user_list.size()) {
+		std::string user = user_list.substr(start);
+		if (!user.empty()) {
+			user_list_vec.push_back(user);
+		}
+	}
+}
+
+void web_utils::StartReceiveThread(std::vector<std::string>& messages, std::vector<std::string>& user_list)
 {
 	// Implementation of receiving thread can be added here
-	std::thread receive_thread([this, &messages]() {
+	std::thread receive_thread([this, &messages, &user_list]() {
 		char buffer[DEFAULT_BUFFER_SIZE];
 		while (true) {
 			int bytes_received = recv(client_socket, buffer, DEFAULT_BUFFER_SIZE - 1, 0);
+			recv_cache.clear();
+			buffer[bytes_received] = '\0'; // Null-terminate the received data
 			if (bytes_received > 0) {
-				buffer[bytes_received] = '\0'; // Null-terminate the received data
-				std::cout << "Received: " << buffer << std::endl;
-				messages.push_back(std::string(buffer));
+				// 1. 将接收的数据追加到缓存
+				recv_cache += std::string(buffer);
+
+				// 2. 按\n拆分完整消息，处理粘包
+				size_t newline_pos;
+				while ((newline_pos = recv_cache.find('\n')) != std::string::npos) {
+					// 提取完整消息（去掉\n）
+					std::string complete_msg = recv_cache.substr(0, newline_pos);
+					RemoveLineFeedFromTail(complete_msg);
+					// 移除已处理的消息，更新缓存
+					recv_cache = recv_cache.substr(newline_pos + 1);
+
+					// 跳过空的完整消息
+					if (complete_msg.empty()) {
+						continue;
+					}
+
+					// 3. 解析完整消息（原有逻辑）
+					std::cout << "Received complete message: " << complete_msg<<"// " << std::endl;
+					std::string reminder;
+					std::string command = UnpackFirstCommand(complete_msg, reminder);
+
+					// -- deal with different commands -- //
+
+					if (command == BROADCAST_MSG) {
+						messages.push_back(reminder);
+					}
+					else if (command == ADD_USER_MSG) {
+						Command_AddUser(reminder, user_list);
+
+					}
+					else if (command == REMOVE_USER_MSG)
+					{
+						Command_RemoveUser(reminder, user_list);
+
+					}
+					else if (command == UNKNOWN_MSG) {
+						continue;
+					}
+				}
 			} else if (bytes_received == 0) {
 				std::cout << "Connection closed by server." << std::endl;
 				break;
@@ -116,7 +208,53 @@ void web_utils::StartReceiveThread(std::vector<std::string>& messages)
 				std::cerr << "Receive failed, error code: " << WSAGetLastError() << std::endl;
 				break;
 			}
+			recv_cache.clear();
 		}
 		});
 	receive_thread.detach(); 
+}
+
+void web_utils::Command_RemoveUser(std::string& reminder, std::vector<std::string>& user_list)
+{
+	// 过滤空的用户名称
+	if (!reminder.empty()) {
+		std::cout << "User left: " << reminder << std::endl;
+		auto it = std::find(user_list.begin(), user_list.end(), reminder);
+		if (it != user_list.end()) {
+			user_list.erase(it);
+		}
+	}
+}
+
+void web_utils::Command_AddUser(std::string& reminder, std::vector<std::string>& user_list)
+{
+	// 过滤空的用户名称
+	if (!reminder.empty()) {
+		std::cout << "New user joined: " << reminder << std::endl;
+		user_list.push_back(reminder);
+	}
+}
+
+void web_utils::RemoveLineFeedFromTail(std::string& received_msg)
+{
+	if (!received_msg.empty() && received_msg.back() == '\n') {
+		received_msg = received_msg.substr(0, received_msg.size() - 1);
+	}
+}
+
+std::string web_utils::UnpackFirstCommand(const std::string& message, std::string& OutReminder)
+{
+	// 检查字符串开头是不是命令标志'!'
+	if (message.empty() || message[0] != '!') {
+		OutReminder = message;
+		return UNKNOWN_MSG;
+	}
+	size_t space_pos = message.find(' ');
+	if (space_pos == std::string::npos) {
+		OutReminder = "";
+		return message; // 整个消息就是命令
+	} else {
+		OutReminder = message.substr(space_pos + 1);
+		return message.substr(0, space_pos);
+	}
 }

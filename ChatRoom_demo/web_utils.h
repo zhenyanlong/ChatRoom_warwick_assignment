@@ -16,6 +16,16 @@
 // 定义缓冲区大小
 #define DEFAULT_BUFFER_SIZE 512
 
+// message command definitions
+#define BROADCAST_MSG "!broadcast"
+#define PRIVATE_MSG "!private"
+#define USER_LIST_MSG "!userlist"
+#define ADD_USER_MSG "!adduser"
+#define REMOVE_USER_MSG "!removeuser"
+#define EXIT_MSG "!exit"
+#define UNKNOWN_MSG "!unknown"
+
+
 
 
 class web_utils
@@ -47,14 +57,27 @@ public:
 
 	void SendBroadcastMessage(std::string message);
 
+	void ReceiveUserListMessage(std::vector<std::string>& user_list);
 
-	void StartReceiveThread(std::vector<std::string>& messages);
+	void RemoveLineFeedFromTail(std::string& received_msg);
+
+	void UpdateUserList(const std::string& user_list, std::vector<std::string>& user_list_vec);
+
+	void StartReceiveThread(std::vector<std::string>& messages, std::vector<std::string>& user_list);
+
+	void Command_RemoveUser(std::string& reminder, std::vector<std::string>& user_list);
+
+	void Command_AddUser(std::string& reminder, std::vector<std::string>& user_list);
+
+	// Unpack first command from message, return the command and the reminder message 
+	static std::string UnpackFirstCommand(const std::string& message, std::string& OutReminder);
 private:
 	web_utils() = default;
 
 	// server info
 	const char* server_ip = "127.0.0.1";
 	u_short server_port = 8080;
+	std::string recv_cache; // 接收消息缓存，用于拆分粘包
 
 	// WinSock variables
 	WSADATA wsaData = {};
