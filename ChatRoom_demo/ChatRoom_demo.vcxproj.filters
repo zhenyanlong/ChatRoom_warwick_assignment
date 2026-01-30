@@ -83,5 +83,8 @@
     <ClInclude Include="web_utils.h">
       <Filter>Header Files\Web</Filter>
     </ClInclude>
+    <ClInclude Include="PrivateChatStructure.h">
+      <Filter>Header Files\Web</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

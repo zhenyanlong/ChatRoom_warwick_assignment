@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 #include <thread>
 // WinSock核心头文件
 
@@ -26,7 +27,7 @@
 #define UNKNOWN_MSG "!unknown"
 
 
-
+struct PrivateChatData;
 
 class web_utils
 {
@@ -59,18 +60,29 @@ public:
 
 	void ReceiveUserListMessage(std::vector<std::string>& user_list);
 
+	// Combine private message
+	void CombinePrivateMessage(const std::string& to_user, const std::string& message, std::string& out_message);
+
+	// Remove line feed from message tail if present
 	void RemoveLineFeedFromTail(std::string& received_msg);
+	
+	// Add line feed to message tail if not present
+	void AddLineFeedToTail(std::string& message);
 
 	void UpdateUserList(const std::string& user_list, std::vector<std::string>& user_list_vec);
 
-	void StartReceiveThread(std::vector<std::string>& messages, std::vector<std::string>& user_list);
+	void StartReceiveThread(std::vector<std::string>& messages, std::vector<std::string>& user_list, std::map<std::string, PrivateChatData>& private_chat_map);
 
 	void Command_RemoveUser(std::string& reminder, std::vector<std::string>& user_list);
 
 	void Command_AddUser(std::string& reminder, std::vector<std::string>& user_list);
 
+	void Command_AddPrivateMessage(std::string& reminder, std::map<std::string, PrivateChatData>& private_chat_map);
+
 	// Unpack first command from message, return the command and the reminder message 
 	static std::string UnpackFirstCommand(const std::string& message, std::string& OutReminder);
+	static void SplitStringAtFirstSpace(const std::string& input_str, std::string& before_space, std::string& after_space);
+	static std::string GetStrBeforeFirstSymbol(const std::string& input_str, char symbol);
 private:
 	web_utils() = default;
 

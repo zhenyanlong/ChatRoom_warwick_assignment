@@ -26,6 +26,7 @@
 #include <vector>
 #include <map>
 #include <web_utils.h>
+#include "PrivateChatStructure.h"
 
 // Config for example app
 static const int APP_NUM_FRAMES_IN_FLIGHT = 2;
@@ -40,12 +41,7 @@ struct FrameContext
     UINT64                      FenceValue;
 };
 
-//private chat data structure
-struct PrivateChatData {
-	bool is_show = false;          // window visibility
-	std::vector<std::string> msgs; // private message list
-	char input_buf[256] = { 0 };   // input buffer
-};
+
 
 // online users and their private chat data
 std::vector<std::string> g_online_users = { "User1", "User2", "User3", "User4" };
@@ -150,7 +146,15 @@ void RenderPrivateChatWindow(const std::string& username) {
 		// message display area
 		ImGui::BeginChild(("MsgArea_" + username).c_str(), ImVec2(0, 300), true);
 		for (const auto& msg : chat_data.msgs) {
-			ImGui::TextColored(ImVec4(0, 1, 0, 1), "Private Message");
+            if (std::string("Me") == web_utils::GetStrBeforeFirstSymbol(msg, ':'))
+            {
+                ImGui::TextColored(ImVec4(0, 1, 0, 1), msg.c_str());
+            }
+            else
+            {
+				ImGui::TextWrapped(msg.c_str());
+            }
+			
 		}
 		ImGui::EndChild();
 
@@ -162,6 +166,9 @@ void RenderPrivateChatWindow(const std::string& username) {
 			// simulate sending private message
 			if (strlen(chat_data.input_buf) > 0) {
 				chat_data.msgs.push_back(std::string("Me: ") + chat_data.input_buf);
+				std::string out_message;
+				web_utils::Get()->CombinePrivateMessage(username, chat_data.input_buf, out_message);
+				web_utils::Get()->SendMessage(out_message);
 				memset(chat_data.input_buf, 0, sizeof(chat_data.input_buf)); // clear input buffer
 			}
 		}
@@ -276,7 +283,7 @@ int main(int argc, char** argv)
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 	std::vector<std::string> messages;
-    web_utils::Get()->StartReceiveThread(messages, g_online_users);
+    web_utils::Get()->StartReceiveThread(messages, g_online_users, g_private_chat_map);
 	
     
 
@@ -326,10 +333,7 @@ int main(int argc, char** argv)
 			if (ImGui::IsItemClicked(1)) {
 				// mark the private chat window to be shown
 				g_private_chat_map[user].is_show = true;
-				// initialize: add welcome message if first time opening
-				if (g_private_chat_map[user].msgs.empty()) {
-					g_private_chat_map[user].msgs.push_back("开始与 " + user + " 的私信对话...");
-				}
+				
 			}
 		}
 		ImGui::EndChild();

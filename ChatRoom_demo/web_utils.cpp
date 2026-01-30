@@ -1,5 +1,7 @@
 #include "web_utils.h"
 #include <thread>
+#include "PrivateChatStructure.h"
+#include <map>
 
 web_utils* web_utils::SingleInstance = nullptr;
 
@@ -126,6 +128,12 @@ void web_utils::ReceiveUserListMessage(std::vector<std::string>& user_list)
 	recv_cache.clear();
 }
 
+void web_utils::CombinePrivateMessage(const std::string& to_user, const std::string& message, std::string& out_message)
+{
+	out_message = std::string(PRIVATE_MSG) + " " + to_user + " " + message;
+	out_message += "\n"; // Append line feed for message termination
+}
+
 
 
 void web_utils::UpdateUserList(const std::string& user_list, std::vector<std::string>& user_list_vec)
@@ -151,10 +159,10 @@ void web_utils::UpdateUserList(const std::string& user_list, std::vector<std::st
 	}
 }
 
-void web_utils::StartReceiveThread(std::vector<std::string>& messages, std::vector<std::string>& user_list)
+void web_utils::StartReceiveThread(std::vector<std::string>& messages, std::vector<std::string>& user_list, std::map<std::string, PrivateChatData>& private_chat_map)
 {
 	// Implementation of receiving thread can be added here
-	std::thread receive_thread([this, &messages, &user_list]() {
+	std::thread receive_thread([this, &messages, &user_list, &private_chat_map]() {
 		char buffer[DEFAULT_BUFFER_SIZE];
 		while (true) {
 			int bytes_received = recv(client_socket, buffer, DEFAULT_BUFFER_SIZE - 1, 0);
@@ -197,6 +205,10 @@ void web_utils::StartReceiveThread(std::vector<std::string>& messages, std::vect
 						Command_RemoveUser(reminder, user_list);
 
 					}
+					else if (command == PRIVATE_MSG)
+					{
+						Command_AddPrivateMessage(reminder, private_chat_map);
+					}
 					else if (command == UNKNOWN_MSG) {
 						continue;
 					}
@@ -235,10 +247,29 @@ void web_utils::Command_AddUser(std::string& reminder, std::vector<std::string>&
 	}
 }
 
+void web_utils::Command_AddPrivateMessage(std::string& reminder, std::map<std::string, PrivateChatData>& private_chat_map)
+{
+	// Here we can process private messages if needed
+	std::cout << "Received private message: " << reminder << std::endl;
+	RemoveLineFeedFromTail(reminder);
+	std::string from_user;
+	std::string private_msg;
+	SplitStringAtFirstSpace(reminder, from_user, private_msg);
+	std::cout << "From: " << from_user << ", Message: " << private_msg << std::endl;
+	private_chat_map[from_user].msgs.push_back(from_user + ": " + private_msg);
+}
+
 void web_utils::RemoveLineFeedFromTail(std::string& received_msg)
 {
 	if (!received_msg.empty() && received_msg.back() == '\n') {
 		received_msg = received_msg.substr(0, received_msg.size() - 1);
+	}
+}
+
+void web_utils::AddLineFeedToTail(std::string& message)
+{
+	if (message.empty() || message.back() != '\n') {
+		message += '\n';
 	}
 }
 
@@ -256,5 +287,39 @@ std::string web_utils::UnpackFirstCommand(const std::string& message, std::strin
 	} else {
 		OutReminder = message.substr(space_pos + 1);
 		return message.substr(0, space_pos);
+	}
+}
+
+void web_utils::SplitStringAtFirstSpace(const std::string& input_str, std::string& before_space, std::string& after_space)
+{
+	size_t first_space_pos = input_str.find(' ');
+	if (first_space_pos == std::string::npos) {
+		// No space found
+		before_space = input_str;
+		after_space = "";
+	}
+	else {
+		before_space = input_str.substr(0, first_space_pos);
+		after_space = input_str.substr(first_space_pos + 1); // +1 to skip the space
+	}
+}
+
+std::string web_utils::GetStrBeforeFirstSymbol(const std::string& input_str, char symbol)
+{
+	// 1. 查找第一个空格的位置（find返回size_t类型，未找到返回string::npos）
+	size_t first_space_pos = input_str.find(symbol);
+
+	// 2. 处理不同情况
+	if (first_space_pos == std::string::npos) {
+		// 情况1：字符串中无空格，返回原字符串
+		return input_str;
+	}
+	else if (first_space_pos == 0) {
+		// 情况2：开头就是空格，返回空字符串（可根据需求调整，比如返回原串或报错）
+		return "";
+	}
+	else {
+		// 情况3：正常有空格，截取0到第一个空格位置的子串
+		return input_str.substr(0, first_space_pos);
 	}
 }
